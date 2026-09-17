@@ -1,0 +1,17 @@
+{
+  "name": "accora-date-emails",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Resolves cohorts of HubSpot contacts and stamps the four date-email properties that gate the AJS_BulkDateEmails workflow. Does not send email.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}

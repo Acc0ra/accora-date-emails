@@ -1,0 +1,732 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assessment date emails — send desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ground:#E4E6DF;
+    --panel:#FBFBF8;
+    --ink:#1B211E;
+    --ink-soft:#5A625C;
+    --rule:#C2C6BA;
+    --rule-soft:#DCDED5;
+    --go:#1E4A42;
+    --alarm:#9E3226;
+    --warn:#8A6A12;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);
+    font-family:Archivo,"Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.5;
+    font-variant-numeric:tabular-nums;
+  }
+  button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
+  input{font-family:inherit;font-size:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--go);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+  .masthead{
+    border-bottom:1px solid var(--rule);padding:22px 28px 18px;
+    display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;
+  }
+  .masthead h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
+  .masthead .who{font-size:13px;color:var(--ink-soft);text-align:right}
+  .masthead .who input{background:none;border:0;border-bottom:1px solid var(--rule);font-weight:600;color:var(--ink);width:120px}
+
+  .desk{display:grid;grid-template-columns:minmax(0,1fr) 366px;gap:0;align-items:start}
+  .stages{padding:0 28px 80px;min-width:0}
+  .slipcol{border-left:1px solid var(--rule);padding:28px 28px 80px;position:sticky;top:0}
+  @media (max-width:940px){
+    .desk{grid-template-columns:minmax(0,1fr)}
+    .slipcol{border-left:0;border-top:1px solid var(--rule);position:static}
+  }
+
+  .stage{border-bottom:1px solid var(--rule-soft);padding:26px 0}
+  .stage:last-child{border-bottom:0}
+  .stage > header{display:flex;gap:14px;align-items:baseline;margin-bottom:16px}
+  .stage .num{
+    flex:none;width:24px;height:24px;border:1px solid var(--rule);border-radius:50%;
+    display:grid;place-items:center;font-size:12.5px;font-weight:600;color:var(--ink-soft);position:relative;top:2px;
+  }
+  .stage[data-done=true] .num{background:var(--go);border-color:var(--go);color:#fff}
+  .stage h2{margin:0;font-size:16.5px;font-weight:600}
+  .stage .hint{margin:2px 0 0;font-size:13px;color:var(--ink-soft);max-width:62ch}
+  .stage .body{padding-left:38px}
+  @media (max-width:560px){.stage .body{padding-left:0}}
+
+  .search{position:relative;max-width:460px}
+  .search input{width:100%;padding:9px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:2px}
+  .results{list-style:none;margin:4px 0 0;padding:0;background:var(--panel);border:1px solid var(--rule);border-radius:2px;max-height:230px;overflow:auto}
+  .results li{border-bottom:1px solid var(--rule-soft)}
+  .results li:last-child{border-bottom:0}
+  .results button{width:100%;text-align:left;background:none;border:0;padding:8px 12px;display:flex;justify-content:space-between;gap:12px}
+  .results button:hover{background:#EFF0EA}
+  .results button[disabled]{opacity:.42;cursor:default}
+  .results .n{font-size:13px;color:var(--ink-soft);flex:none}
+
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;padding:0;list-style:none}
+  .chip{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:5px 6px 5px 10px;font-size:13.5px}
+  .chip button{background:none;border:0;padding:0 4px;font-size:15px;line-height:1;color:var(--ink-soft)}
+  .chip button:hover{color:var(--alarm)}
+
+  .nameform{display:flex;gap:8px;max-width:420px}
+  .nameform input{flex:1;padding:9px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:2px}
+  .nameform button{background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:9px 14px}
+  .nameform button:hover{border-color:var(--ink)}
+  .cap-note{margin:8px 0 0;font-size:12.5px;color:var(--ink-soft)}
+
+  .strip{display:flex;flex-wrap:wrap;gap:4px;margin:0;padding:0;list-style:none}
+  .day{background:var(--panel);border:1px solid var(--rule-soft);border-radius:2px;padding:5px 0 6px;width:46px;text-align:center;line-height:1.25}
+  .day small{display:block;font-size:10.5px;color:var(--ink-soft)}
+  .day b{font-weight:600;font-size:14px}
+  .day[aria-pressed=true]{background:var(--go);border-color:var(--go);color:#fff}
+  .day[aria-pressed=true] small{color:#B9CFC9}
+  .day[disabled]{opacity:.35}
+
+  .more{margin:12px 0 0;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+  .more button{background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:5px 11px;font-size:13px}
+  .more button:hover{border-color:var(--ink)}
+  .more .capped{font-size:13px;color:var(--warn)}
+
+  .union{margin:18px 0 0;padding:12px 14px;background:var(--panel);border:1px solid var(--rule);border-radius:2px;max-width:520px;font-size:13.5px}
+  .union p{margin:0 0 6px}
+  .union p:last-child{margin:0}
+  .union b{font-weight:600}
+
+  .runlabel input{width:100%;max-width:420px;padding:9px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:2px}
+  .runlabel .warn{margin:8px 0 0;font-size:12.5px;color:var(--warn);max-width:60ch}
+
+  .sender{background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:14px 16px;max-width:520px}
+  .sender dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 18px;font-size:13.5px}
+  .sender dt{color:var(--ink-soft)}
+  .sender dd{margin:0}
+
+  .slip{background:var(--panel);border:1px solid var(--ink);border-radius:2px}
+  .slip > h2{margin:0;padding:12px 16px;font-size:14.5px;font-weight:600;border-bottom:1px solid var(--ink)}
+  .tally{padding:14px 16px;border-bottom:1px solid var(--rule-soft)}
+  .tally .big{display:flex;align-items:baseline;gap:9px}
+  .tally .big b{font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .tally .big span{font-size:13.5px;color:var(--ink-soft)}
+  .tally ul{list-style:none;margin:11px 0 0;padding:0;font-size:13px}
+  .tally li{display:flex;justify-content:space-between;gap:10px;padding:2px 0;color:var(--ink-soft)}
+  .tally li b{font-weight:500;color:var(--ink)}
+
+  .flag{padding:11px 16px;font-size:13px;border-bottom:1px solid var(--rule-soft);background:#F5F0DF;color:#5E4A0C}
+  .flag b{font-weight:600}
+  .flag.bad{background:#F6E7E4;color:#7A281E}
+
+  .slipfacts{padding:14px 16px;border-bottom:1px solid var(--rule-soft);font-size:13px}
+  .slipfacts dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 14px}
+  .slipfacts dt{color:var(--ink-soft)}
+  .slipfacts dd{margin:0}
+
+  .slipact{padding:14px 16px}
+  .go{width:100%;background:var(--go);color:#fff;border:1px solid var(--go);border-radius:2px;padding:11px;font-weight:600}
+  .go:hover{background:#173B34}
+  .go[disabled]{background:var(--rule-soft);border-color:var(--rule);color:var(--ink-soft);cursor:default}
+  .ghost{width:100%;margin-top:7px;background:none;border:1px solid var(--rule);border-radius:2px;padding:9px;font-size:13.5px}
+  .ghost:hover{border-color:var(--ink)}
+  .blocked{margin:9px 0 0;font-size:12.5px;color:var(--ink-soft)}
+
+  .scrim{position:fixed;inset:0;background:rgba(27,33,30,.55);display:grid;place-items:start center;padding:36px 20px;overflow:auto;z-index:20}
+  .sheet{background:var(--panel);border:1px solid var(--ink);border-radius:2px;width:100%;max-width:660px}
+  .sheet > header{padding:18px 22px;border-bottom:1px solid var(--ink)}
+  .sheet > header h2{margin:0;font-size:18px;font-weight:600}
+  .sheet > header p{margin:5px 0 0;font-size:13.5px;color:var(--ink-soft)}
+  .sheet section{padding:18px 22px;border-bottom:1px solid var(--rule-soft)}
+  .sheet section > h3{margin:0 0 10px;font-size:13.5px;font-weight:600}
+  .sheet footer{padding:16px 22px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  .sheet footer .go{width:auto;padding:11px 20px}
+  .sheet footer .ghost{width:auto;margin:0;padding:11px 18px}
+
+  .facts{margin:0;display:grid;grid-template-columns:auto 1fr;gap:5px 20px;font-size:13.5px}
+  .facts dt{color:var(--ink-soft)}
+  .facts dd{margin:0}
+
+  .letter{border:1px solid var(--rule);border-radius:2px;background:#fff}
+  .letter .meta{padding:10px 14px;border-bottom:1px solid var(--rule-soft);font-size:12.5px;color:var(--ink-soft)}
+  .letter .meta b{color:var(--ink);font-weight:500}
+  .letter .copy{padding:16px 18px;font-size:14px;line-height:1.62;max-width:64ch}
+  .letter .copy p{margin:0 0 11px}
+  .letter .copy p:last-child{margin:0}
+  .letter .copy mark{background:#DCE8E4;color:inherit;padding:0 1px}
+  .sample{margin:8px 0 0;font-size:12.5px;color:var(--ink-soft)}
+
+  .bar{height:9px;background:var(--rule-soft);border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--go)}
+  .prog{max-width:660px}
+  .prog h2{margin:0 0 6px;font-size:19px;font-weight:600}
+  .prog .sub{margin:0 0 20px;color:var(--ink-soft);font-size:13.5px}
+  .prog .counts{display:flex;gap:26px;margin:14px 0 0;font-size:13.5px;flex-wrap:wrap}
+  .prog .counts div b{display:block;font-size:22px;font-weight:600}
+  .prog .counts div span{color:var(--ink-soft)}
+  .log{margin:22px 0 0;background:var(--panel);border:1px solid var(--rule);border-radius:2px;font-size:13px;max-height:230px;overflow:auto}
+  .log div{padding:6px 14px;border-bottom:1px solid var(--rule-soft);display:flex;gap:12px}
+  .log div:last-child{border-bottom:0}
+  .log time{color:var(--ink-soft);flex:none}
+
+  .report{max-width:760px}
+  .report h2{margin:0 0 6px;font-size:19px;font-weight:600}
+  .report .sub{margin:0 0 22px;color:var(--ink-soft);font-size:13.5px}
+  .headline{display:flex;gap:0;border:1px solid var(--rule);border-radius:2px;background:var(--panel);flex-wrap:wrap}
+  .headline div{padding:14px 18px;border-right:1px solid var(--rule-soft);flex:1 1 130px}
+  .headline div:last-child{border-right:0}
+  .headline b{display:block;font-size:27px;font-weight:600;line-height:1.1}
+  .headline span{font-size:13px;color:var(--ink-soft)}
+  .headline .neg b{color:var(--alarm)}
+  .headline .def b{color:var(--warn)}
+
+  .why{margin:24px 0 0}
+  .why h3{margin:0 0 4px;font-size:15px;font-weight:600}
+  .why p{margin:0 0 10px;font-size:13.5px;color:var(--ink-soft);max-width:70ch}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--panel);border:1px solid var(--rule)}
+  th,td{text-align:left;padding:8px 14px;border-bottom:1px solid var(--rule-soft)}
+  th{font-weight:600;font-size:12.5px;color:var(--ink-soft)}
+  tbody tr:last-child td{border-bottom:0}
+  td.n{text-align:right;width:80px}
+  .resume{margin:22px 0 0;padding:15px 18px;background:#F5F0DF;border:1px solid #D8C98E;border-radius:2px}
+  .resume h3{margin:0 0 5px;font-size:15px;font-weight:600;color:#5E4A0C}
+  .resume p{margin:0 0 12px;font-size:13.5px;color:#5E4A0C;max-width:66ch}
+  .badbanner{margin:0 0 22px;padding:15px 18px;background:#F6E7E4;border:1px solid #E0B4AB;border-radius:2px;color:#7A281E;font-size:13.5px}
+  .badbanner b{display:block;margin-bottom:4px;font-size:15px}
+  .err{margin:10px 0 0;font-size:13.5px;color:var(--alarm)}
+</style>
+
+<header class="masthead">
+  <h1>Assessment date emails</h1>
+  <div class="who">
+    Signed in as <input id="operator" value="Kelly (ISC)"><br>
+    Sending allowance per run: <b id="capLabel">1,000</b>
+  </div>
+</header>
+
+<main id="main"></main>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* small helpers mirroring server-side grammar (lib/render.js), for    */
+/* instant preview text only — the server is the authority at write   */
+/* time.                                                                */
+/* ------------------------------------------------------------------ */
+function ordinal(day){
+  const v = day % 100;
+  if (v >= 11 && v <= 13) return day + 'th';
+  switch (day % 10) { case 1: return day+'st'; case 2: return day+'nd'; case 3: return day+'rd'; default: return day+'th'; }
+}
+function joinWithFinal(parts, word){
+  if (!parts.length) return '';
+  if (parts.length === 1) return parts[0];
+  return parts.slice(0,-1).join(', ') + ' ' + word + ' ' + parts[parts.length-1];
+}
+function namePhrase(names){
+  if (!names.length) return null;
+  return joinWithFinal(names,'and') + ' ' + (names.length===1?'is':'are');
+}
+function nameSentence(names){
+  if (!names.length) return null;
+  return joinWithFinal(names,'and');
+}
+function dateSentence(dates){
+  const todayIso = new Date().toISOString().slice(0,10);
+  const future = [...new Set(dates)].filter(d=>d>=todayIso).sort();
+  if (!future.length) return null;
+  const chosen = future.slice(0,5);
+  return 'the ' + joinWithFinal(chosen.map(d=>ordinal(Number(d.slice(8,10)))), 'or');
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+/* ------------------------------------------------------------------ */
+/* state                                                                */
+/* ------------------------------------------------------------------ */
+const MAX_NAMES = 3;
+const MAX_DATES = 5;
+const MIN_HORIZON = 21, MAX_HORIZON = 56;
+
+const state = {
+  view: 'compose',
+  accounts: [],          // [{id,name}]
+  query: '',
+  searchResults: [],
+  searchNote: '',
+  names: [],
+  nameInput: '',
+  dates: new Set(),
+  horizon: MIN_HORIZON,
+  runLabel: '',
+  showConfirm: false,
+  preview: null,         // last /api/run/preview response
+  previewing: false,
+  previewError: null,
+  runId: null,
+  status: null,          // last /api/run/:id/status response
+  pollHandle: null,
+};
+
+try {
+  const savedOp = localStorage.getItem('operator');
+  if (savedOp) document.getElementById('operator').value = savedOp;
+} catch {}
+document.getElementById('operator').addEventListener('change', e => {
+  try { localStorage.setItem('operator', e.target.value); } catch {}
+});
+
+fetch('/api/config').then(r=>r.json()).then(c=>{
+  if (c.sendCap) document.getElementById('capLabel').textContent = c.sendCap.toLocaleString();
+}).catch(()=>{});
+
+/* ------------------------------------------------------------------ */
+/* API                                                                  */
+/* ------------------------------------------------------------------ */
+async function api(path, opts){
+  const res = await fetch(path, { headers:{'Content-Type':'application/json'}, ...opts });
+  const body = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+  return body;
+}
+
+let searchTimer = null;
+function scheduleSearch(){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async ()=>{
+    if (!state.query.trim()) { state.searchResults = []; render(); return; }
+    try {
+      const body = await api('/api/companies/search?q=' + encodeURIComponent(state.query));
+      state.searchResults = body.results || [];
+      state.searchNote = state.searchResults.length ? '' : "No account matches that. Names come from HubSpot, so try a shorter word.";
+    } catch (err) {
+      state.searchResults = [];
+      state.searchNote = err.message;
+    }
+    render();
+  }, 250);
+}
+
+function invalidatePreview(){
+  state.preview = null;
+  state.previewError = null;
+}
+
+async function runPreview(){
+  state.previewing = true;
+  state.previewError = null;
+  render();
+  try {
+    const body = await api('/api/run/preview', {
+      method:'POST',
+      body: JSON.stringify({
+        companyIds: state.accounts.map(a=>a.id),
+        names: state.names,
+        dates: [...state.dates],
+        runLabel: state.runLabel,
+      }),
+    });
+    state.preview = body;
+    state.runId = body.runId;
+  } catch (err) {
+    state.previewError = err.message;
+  }
+  state.previewing = false;
+  render();
+}
+
+async function startExecute(){
+  if (!state.runId) return;
+  await api(`/api/run/${state.runId}/execute`, {
+    method:'POST',
+    body: JSON.stringify({ operator: document.getElementById('operator').value }),
+  });
+  state.showConfirm = false;
+  state.view = 'sending';
+  render();
+  pollStatus();
+}
+
+function pollStatus(){
+  clearTimeout(state.pollHandle);
+  const tick = async ()=>{
+    try {
+      const body = await api(`/api/run/${state.runId}/status`);
+      state.status = body;
+      if (body.status === 'done' || body.status === 'done-with-failures') {
+        state.view = 'report';
+        render();
+        return;
+      }
+      render();
+      state.pollHandle = setTimeout(tick, 1200);
+    } catch (err) {
+      state.status = { error: err.message };
+      render();
+      state.pollHandle = setTimeout(tick, 3000);
+    }
+  };
+  tick();
+}
+
+/* ------------------------------------------------------------------ */
+/* render                                                               */
+/* ------------------------------------------------------------------ */
+const main = document.getElementById('main');
+
+function readiness(){
+  return {
+    accounts: state.accounts.length > 0,
+    names: state.names.length > 0,
+    dates: state.dates.size > 0,
+    runLabel: state.runLabel.trim().length > 0,
+  };
+}
+
+function render(){
+  const r = readiness();
+  const ready = r.accounts && r.names && r.dates && r.runLabel;
+  if (state.view === 'compose') main.innerHTML = composeView(r, ready) + (state.showConfirm ? confirmSheet() : '');
+  if (state.view === 'sending') main.innerHTML = sendingView();
+  if (state.view === 'report') main.innerHTML = reportView();
+  wire();
+}
+
+function composeView(r, ready){
+  const namesSentence = namePhrase(state.names);
+  const datesSentence = dateSentence([...state.dates]);
+
+  return `
+  <div class="desk">
+    <div class="stages">
+
+      <section class="stage" data-done="${r.accounts}">
+        <header><span class="num">1</span><div>
+          <h2>Which accounts is this send for?</h2>
+          <p class="hint">Pick the accounts covering the area the specialists will be in. Everyone whose main employer is one of these accounts will hear about it.</p>
+        </div></header>
+        <div class="body">
+          <div class="search">
+            <input id="q" placeholder="Search accounts" value="${esc(state.query)}" autocomplete="off">
+            ${state.query ? accountResults() : ''}
+          </div>
+          <ul class="chips">
+            ${state.accounts.map(a=>`<li class="chip">${esc(a.name)}
+              <button data-drop-acc="${a.id}" aria-label="Remove ${esc(a.name)}">&times;</button></li>`).join('')}
+          </ul>
+        </div>
+      </section>
+
+      <section class="stage" data-done="${r.names}">
+        <header><span class="num">2</span><div>
+          <h2>Which specialists is it about?</h2>
+          <p class="hint">Up to three. The email reads naturally for one, two or three names.</p>
+        </div></header>
+        <div class="body">
+          <ul class="chips">
+            ${state.names.map((n,i)=>`<li class="chip">${esc(n)}
+              <button data-drop-name="${i}" aria-label="Remove ${esc(n)}">&times;</button></li>`).join('')}
+          </ul>
+          ${state.names.length < MAX_NAMES ? `
+          <form class="nameform" data-nameform>
+            <input id="nameInput" placeholder="Type a name and press Enter" value="${esc(state.nameInput)}" autocomplete="off">
+            <button type="submit">Add</button>
+          </form>` : `<p class="cap-note">Three named — that's the most one email reads naturally.</p>`}
+        </div>
+      </section>
+
+      <section class="stage" data-done="${r.dates}">
+        <header><span class="num">3</span><div>
+          <h2>When are they available?</h2>
+        </div></header>
+        <div class="body">
+          ${dateStrip()}
+          <p class="more">
+            ${state.horizon < MAX_HORIZON ? `<button data-horizon="more">Show dates further ahead</button>` : `<button data-horizon="less">Show fewer weeks</button>`}
+            ${state.dates.size >= MAX_DATES ? `<span class="capped">${MAX_DATES} dates is the most you can pick. Untick one to swap it.</span>` : ''}
+          </p>
+          ${state.dates.size ? `<div class="union">
+            <p>The email will say: <b>${namesSentence?esc(namesSentence):'—'} in your area on ${datesSentence?esc(datesSentence):'—'}</b></p>
+          </div>` : ''}
+        </div>
+      </section>
+
+      <section class="stage" data-done="${r.runLabel}">
+        <header><span class="num">4</span><div>
+          <h2>Run label</h2>
+          <p class="hint">Territory plus year-month, e.g. <b>Manchester — 2026-09</b>. The workflow that sends these emails matches this exactly, so keep the em dash.</p>
+        </div></header>
+        <div class="body runlabel">
+          <input id="runLabel" placeholder="e.g. Manchester — 2026-09" value="${esc(state.runLabel)}">
+          ${runLabelWarning() ? `<p class="warn">${esc(runLabelWarning())}</p>` : ''}
+        </div>
+      </section>
+
+      <section class="stage" data-done="true">
+        <header><span class="num">5</span><div>
+          <h2>Who it comes from</h2>
+          <p class="hint">Replies come back to this inbox.</p>
+        </div></header>
+        <div class="body">
+          <div class="sender">
+            <dl>
+              <dt>From name</dt><dd>Accora Assessments</dd>
+              <dt>Address</dt><dd>assessments@accora.care</dd>
+              <dt>Replies to</dt><dd>The same inbox</dd>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+    </div>
+    <div class="slipcol">${slip(r, ready)}</div>
+  </div>`;
+}
+
+function runLabelWarning(){
+  const s = state.runLabel;
+  if (!s) return null;
+  if (/\s-\s/.test(s) && !s.includes('—')) {
+    return 'This uses a plain hyphen, not an em dash ("—"). If the workflow trigger expects an em dash, this won\'t match it.';
+  }
+  return null;
+}
+
+function accountResults(){
+  if (state.searchNote) return `<ul class="results"><li><button disabled>${esc(state.searchNote)}</button></li></ul>`;
+  if (!state.searchResults.length) return '';
+  return `<ul class="results">${state.searchResults.map(a=>{
+    const on = state.accounts.some(x=>x.id===a.id);
+    return `<li><button data-add-acc="${a.id}" data-add-acc-name="${esc(a.name)}" ${on?'disabled':''}>
+      <span>${esc(a.name)}${on?' — already added':''}</span></button></li>`;
+  }).join('')}</ul>`;
+}
+
+function dateStrip(){
+  const days = Array.from({length:state.horizon}, (_,i)=>{ const d=new Date(); d.setDate(d.getDate()+i); return d; });
+  const full = state.dates.size >= MAX_DATES;
+  return `<ul class="strip">${days.map(d=>{
+    const iso = d.toISOString().slice(0,10);
+    const on = state.dates.has(iso);
+    return `<li><button class="day" data-day="${iso}" aria-pressed="${on}" ${(!on&&full)?'disabled':''}>
+      <small>${d.toLocaleDateString('en-GB',{weekday:'short'})}</small><b>${d.getDate()}</b><small>${d.toLocaleDateString('en-GB',{month:'short'})}</small></button></li>`;
+  }).join('')}</ul>`;
+}
+
+function slip(r, ready){
+  const p = state.preview;
+  return `<div class="slip">
+    <h2>This send</h2>
+    ${p ? `
+    <div class="tally">
+      <div class="big"><b>${p.counts.willWriteToday.toLocaleString()}</b><span>people will be queued today</span></div>
+      <ul>
+        <li><span>In the accounts you picked</span><b>${p.counts.raw.toLocaleString()}</b></li>
+        <li><span>On the do-not-email list</span><b>&minus;${p.counts.excluded.permanentList}</b></li>
+        <li><span>Emailed in the last few weeks</span><b>&minus;${p.counts.excluded.recentlyEmailed}</b></li>
+        <li><span>Opted out of one-to-one email</span><b>&minus;${p.counts.excluded.optedOut}</b></li>
+        <li><span>Previously hard bounced</span><b>&minus;${p.counts.excluded.hardBounced}</b></li>
+        <li><span>No email address on file</span><b>&minus;${p.counts.excluded.noEmail}</b></li>
+        ${p.counts.heldForNextTime>0?`<li><span>Over today's allowance</span><b>&minus;${p.counts.heldForNextTime}</b></li>`:''}
+      </ul>
+    </div>
+    ${p.counts.heldForNextTime>0?`<div class="flag">
+      <b>${p.counts.heldForNextTime} people won't fit today.</b> They'll be held and land at the front
+      of the queue next time — nothing else to do.
+    </div>`:''}
+    ` : `<div class="tally"><p style="color:var(--ink-soft);font-size:13.5px;margin:0">
+      ${ready ? 'Review to see the real numbers from HubSpot.' : 'Fill in accounts, specialists, dates and a run label to continue.'}
+    </p></div>`}
+
+    <div class="slipfacts">
+      <dl>
+        <dt>Specialists</dt><dd>${nameSentence(state.names)?esc(nameSentence(state.names)):'<em>none named</em>'}</dd>
+        <dt>Dates</dt><dd>${dateSentence([...state.dates])?esc(dateSentence([...state.dates])):'<em>none entered</em>'}</dd>
+        <dt>Run label</dt><dd>${state.runLabel?esc(state.runLabel):'<em>none entered</em>'}</dd>
+        <dt>Order</dt><dd>Longest since their last one first</dd>
+      </dl>
+    </div>
+
+    <div class="slipact">
+      <button class="go" data-review ${ready?'':'disabled'} ${state.previewing?'disabled':''}>${state.previewing?'Checking with HubSpot…':'Review before sending'}</button>
+      <button class="ghost" data-dry ${ready?'':'disabled'} ${state.previewing?'disabled':''}>Try it without sending</button>
+      ${!ready?`<p class="blocked">Add ${!r.accounts?'an account':!r.names?'a specialist':!r.dates?'some dates':'a run label'} to carry on.</p>`:''}
+      ${state.previewError?`<p class="err">${esc(state.previewError)}</p>`:''}
+    </div>
+  </div>`;
+}
+
+function confirmSheet(){
+  const p = state.preview;
+  if (!p) return '';
+  const names = esc(nameSentence(state.names)||'');
+  const phrase = esc(namePhrase(state.names)||'');
+  const dates = esc(dateSentence([...state.dates])||'');
+  const sample = p.sample;
+  return `<div class="scrim" data-scrim>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="Review before sending">
+      <header>
+        <h2>Queue for ${p.counts.willWriteToday.toLocaleString()} people?</h2>
+        <p>This queues them for HubSpot's workflow to send. It can't be taken back once started.</p>
+      </header>
+      <section>
+        <h3>What's going out</h3>
+        <dl class="facts">
+          <dt>Accounts</dt><dd>${state.accounts.map(a=>esc(a.name)).join(', ')}</dd>
+          <dt>People</dt><dd>${p.counts.willWriteToday.toLocaleString()} today${p.counts.heldForNextTime?`, ${p.counts.heldForNextTime} held for next time`:''}</dd>
+          <dt>Specialists</dt><dd>${names}</dd>
+          <dt>Dates</dt><dd>${dates}</dd>
+          <dt>Run label</dt><dd>${esc(state.runLabel)}</dd>
+          <dt>From</dt><dd>Accora Assessments &lt;assessments@accora.care&gt;</dd>
+        </dl>
+      </section>
+      <section>
+        <h3>What one of them will get</h3>
+        ${sample ? `<div class="letter">
+          <div class="meta">To <b>${esc(sample.firstname || 'a contact')}</b> (${esc(sample.email)}) · From <b>Accora Assessments</b><br>
+          Subject <b>${names}, in your area on ${dates}</b></div>
+          <div class="copy">
+            <p>Hi ${esc(sample.firstname || 'there')},</p>
+            <p><mark>${phrase}</mark> in your area on <mark>${dates}</mark>, with room for assessments while nearby.</p>
+            <p>If you have a service user who needs seating or a bed looked at, reply to this email or call the team and we'll find a slot that works.</p>
+            <p>Best wishes,<br>The Accora assessments team</p>
+          </div>
+        </div>
+        <p class="sample">Shown with one real person's details so you can check the wording reads properly.</p>`
+        : `<p class="hint">No one in today's queue has an email address to preview — check the numbers above.</p>`}
+      </section>
+      <footer>
+        <button class="ghost" data-cancel>Go back and change something</button>
+        <button class="go" data-start>Queue ${p.counts.willWriteToday.toLocaleString()} people</button>
+      </footer>
+    </div>
+  </div>`;
+}
+
+function sendingView(){
+  const s = state.status;
+  const total = s ? s.counts.willWriteToday : 0;
+  const done = s ? s.writtenCount : 0;
+  const pct = total ? Math.round((done/total)*100) : 0;
+  const namesRendered = s && s.renderedStrings ? s.renderedStrings.date_email_ps_names_plain : nameSentence(state.names);
+  const datesRendered = s && s.renderedStrings ? s.renderedStrings.date_email_ps_dates : dateSentence([...state.dates]);
+  return `<div class="stages"><div class="prog">
+    <h2>Queuing for ${esc(state.runLabel)}</h2>
+    <p class="sub">${done.toLocaleString()} people are queued so far, for ${esc(namesRendered||'')} on ${esc(datesRendered||'')}. They'll go out over the next few minutes as HubSpot's workflow enrols them.
+    Leave this open — if you close it, come back and it'll still be running.</p>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="counts">
+      <div><b>${done.toLocaleString()}</b><span>queued</span></div>
+      <div><b>${Math.max(total-done,0).toLocaleString()}</b><span>to go</span></div>
+      <div><b>${(s?s.counts.heldForNextTime:0).toLocaleString()}</b><span>held for next time</span></div>
+    </div>
+    <div class="log">${(s?s.log:[]).slice().reverse().map(l=>`<div><time>${new Date(l.ts).toLocaleTimeString('en-GB')}</time><span>${esc(l.message)}</span></div>`).join('')}</div>
+  </div></div>`;
+}
+
+function reportView(){
+  const s = state.status;
+  if (!s) return `<div class="stages"><div class="report"><h2>Loading report…</h2></div></div>`;
+  const c = s.counts;
+  const namesRendered = s.renderedStrings ? s.renderedStrings.date_email_ps_names_plain : nameSentence(s.names);
+  const datesRendered = s.renderedStrings ? s.renderedStrings.date_email_ps_dates : dateSentence(s.dates);
+  return `<div class="stages"><div class="report">
+    <h2>${esc(s.runLabel)} — ${s.status === 'done' ? 'finished' : (s.status === 'previewed' ? 'dry run — nothing sent' : 'finished with problems')}</h2>
+    <p class="sub">${esc(namesRendered||'')} · ${esc(datesRendered||'')}</p>
+
+    ${s.failedCount>0?`<div class="badbanner">
+      <b>${s.failedCount} people did not get queued.</b>
+      This run is safe to run again for just the accounts you picked — they'll sort back to the
+      front of the queue automatically, since their last-sent date never changed.
+    </div>`:''}
+
+    <div class="headline">
+      <div><b>${c.raw.toLocaleString()}</b><span>in the accounts</span></div>
+      <div><b>${c.resolved.toLocaleString()}</b><span>left after exclusions</span></div>
+      <div><b>${s.writtenCount.toLocaleString()}</b><span>queued</span></div>
+      ${s.failedCount>0?`<div class="neg"><b>${s.failedCount.toLocaleString()}</b><span>not queued</span></div>`:''}
+      <div class="def"><b>${c.heldForNextTime.toLocaleString()}</b><span>held for next time</span></div>
+    </div>
+
+    <div class="why">
+      <h3>Left out before we started</h3>
+      <p>Visible in advance and actionable.</p>
+      <table>
+        <thead><tr><th>Reason</th><th class="n">People</th></tr></thead>
+        <tbody>
+          <tr><td>On the do-not-email list</td><td class="n">${c.excluded.permanentList}</td></tr>
+          <tr><td>Emailed recently</td><td class="n">${c.excluded.recentlyEmailed}</td></tr>
+          <tr><td>Opted out of one-to-one email</td><td class="n">${c.excluded.optedOut}</td></tr>
+          <tr><td>Previously hard bounced</td><td class="n">${c.excluded.hardBounced}</td></tr>
+          <tr><td>No email address on file</td><td class="n">${c.excluded.noEmail}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    ${c.heldForNextTime>0?`<div class="resume">
+      <h3>${c.heldForNextTime} people are still waiting</h3>
+      <p>They didn't fit in today's allowance. Run the same accounts again when there's allowance left — held people are ordered to the front automatically.</p>
+    </div>`:''}
+
+    <p style="margin-top:24px"><button class="ghost" style="width:auto;padding:9px 16px" data-newrun>Start a new run</button></p>
+  </div></div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* events                                                               */
+/* ------------------------------------------------------------------ */
+function wire(){
+  const q = document.getElementById('q');
+  if (q) q.oninput = e => { state.query = e.target.value; scheduleSearch(); render();
+    const n=document.getElementById('q'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)} };
+
+  const nameInput = document.getElementById('nameInput');
+  if (nameInput) nameInput.oninput = e => { state.nameInput = e.target.value; };
+
+  const nameForm = main.querySelector('[data-nameform]');
+  if (nameForm) nameForm.onsubmit = e => {
+    e.preventDefault();
+    const v = state.nameInput.trim();
+    if (v && state.names.length < MAX_NAMES) { state.names.push(v); state.nameInput=''; invalidatePreview(); }
+    render();
+  };
+
+  const runLabelInput = document.getElementById('runLabel');
+  if (runLabelInput) runLabelInput.oninput = e => { state.runLabel = e.target.value; invalidatePreview(); render();
+    const n=document.getElementById('runLabel'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)} };
+
+  main.onclick = e => {
+    const t = e.target.closest('[data-add-acc],[data-drop-acc],[data-drop-name],[data-day],[data-horizon],[data-review],[data-dry],[data-cancel],[data-scrim],[data-start],[data-newrun]');
+    if (!t) return;
+    const d = t.dataset;
+
+    if (d.addAcc){ state.accounts.push({id:d.addAcc, name:d.addAccName}); state.query=''; state.searchResults=[]; invalidatePreview(); }
+    else if (d.dropAcc){ state.accounts = state.accounts.filter(a=>a.id!==d.dropAcc); invalidatePreview(); }
+    else if (d.dropName!==undefined){ state.names.splice(Number(d.dropName),1); invalidatePreview(); }
+    else if (d.day){
+      if (state.dates.has(d.day)) state.dates.delete(d.day);
+      else if (state.dates.size < MAX_DATES) state.dates.add(d.day);
+      invalidatePreview();
+    }
+    else if (d.horizon){ state.horizon = d.horizon==='more' ? MAX_HORIZON : MIN_HORIZON; }
+    else if (d.review!==undefined){ runPreview().then(()=>{ if (state.preview) { state.showConfirm = true; render(); } }); return; }
+    else if (d.dry!==undefined){
+      runPreview().then(()=>{
+        if (!state.preview) return;
+        state.view = 'report';
+        state.status = {
+          status: 'previewed', runLabel: state.runLabel, names: state.names, dates: [...state.dates],
+          renderedStrings: state.preview.renderedStrings,
+          counts: state.preview.counts, writtenCount: 0, failedCount: 0, log: [],
+        };
+        render();
+      });
+      return;
+    }
+    else if (d.cancel!==undefined || (d.scrim!==undefined && e.target===t)){ state.showConfirm=false; }
+    else if (d.start!==undefined){ startExecute(); return; }
+    else if (d.newrun!==undefined){ location.reload(); return; }
+    render();
+  };
+}
+
+render();
+</script>
