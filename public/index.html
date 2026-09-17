@@ -73,10 +73,20 @@
   .chip button{background:none;border:0;padding:0 4px;font-size:15px;line-height:1;color:var(--ink-soft)}
   .chip button:hover{color:var(--alarm)}
 
-  .nameform{display:flex;gap:8px;max-width:420px}
-  .nameform input{flex:1;padding:9px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:2px}
-  .nameform button{background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:9px 14px}
-  .nameform button:hover{border-color:var(--ink)}
+  .regions{display:flex;flex-direction:column;gap:16px}
+  .region-group h3{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+  .people{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+  .person{
+    background:var(--panel);border:1px solid var(--rule);border-radius:2px;
+    padding:9px 12px;display:flex;align-items:center;gap:8px;
+  }
+  .person b{font-weight:500}
+  .person[aria-pressed=true]{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go)}
+  .person[disabled]{opacity:.4;cursor:default}
+  .person .order{
+    flex:none;width:18px;height:18px;border-radius:50%;background:var(--go);color:#fff;
+    font-size:11px;font-weight:600;display:grid;place-items:center;
+  }
   .cap-note{margin:8px 0 0;font-size:12.5px;color:var(--ink-soft)}
 
   .strip{display:flex;flex-wrap:wrap;gap:4px;margin:0;padding:0;list-style:none}
@@ -97,8 +107,8 @@
   .union p:last-child{margin:0}
   .union b{font-weight:600}
 
-  .runlabel input{width:100%;max-width:420px;padding:9px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:2px}
-  .runlabel .warn{margin:8px 0 0;font-size:12.5px;color:var(--warn);max-width:60ch}
+  .territory input{width:100%;max-width:420px;padding:9px 12px;background:var(--panel);border:1px solid var(--rule);border-radius:2px}
+  .territory .hint-live{margin:8px 0 0;font-size:12.5px;color:var(--ink-soft)}
 
   .sender{background:var(--panel);border:1px solid var(--rule);border-radius:2px;padding:14px 16px;max-width:520px}
   .sender dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 18px;font-size:13.5px}
@@ -111,6 +121,7 @@
   .tally .big{display:flex;align-items:baseline;gap:9px}
   .tally .big b{font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1}
   .tally .big span{font-size:13.5px;color:var(--ink-soft)}
+  .tally .capacity{margin:6px 0 0;font-size:12.5px;color:var(--ink-soft)}
   .tally ul{list-style:none;margin:11px 0 0;padding:0;font-size:13px}
   .tally li{display:flex;justify-content:space-between;gap:10px;padding:2px 0;color:var(--ink-soft)}
   .tally li b{font-weight:500;color:var(--ink)}
@@ -194,12 +205,15 @@
   .badbanner{margin:0 0 22px;padding:15px 18px;background:#F6E7E4;border:1px solid #E0B4AB;border-radius:2px;color:#7A281E;font-size:13.5px}
   .badbanner b{display:block;margin-bottom:4px;font-size:15px}
   .err{margin:10px 0 0;font-size:13.5px;color:var(--alarm)}
+  .lost{max-width:640px}
+  .lost h2{margin:0 0 8px;font-size:19px;font-weight:600}
+  .lost p{margin:0 0 10px;font-size:13.5px;color:var(--ink-soft);max-width:60ch}
 </style>
 
 <header class="masthead">
   <h1>Assessment date emails</h1>
   <div class="who">
-    Signed in as <input id="operator" value="Kelly (ISC)"><br>
+    Signed in as <input id="operator" value="Apple (ISC)"><br>
     Sending allowance per run: <b id="capLabel">1,000</b>
   </div>
 </header>
@@ -208,9 +222,9 @@
 
 <script>
 /* ------------------------------------------------------------------ */
-/* small helpers mirroring server-side grammar (lib/render.js), for    */
-/* instant preview text only — the server is the authority at write   */
-/* time.                                                                */
+/* small helpers mirroring server-side grammar (lib/render.js and       */
+/* lib/specialists.js), for instant preview text only — the server is   */
+/* the authority at write time.                                         */
 /* ------------------------------------------------------------------ */
 function ordinal(day){
   const v = day % 100;
@@ -239,12 +253,37 @@ function dateSentence(dates){
 }
 function esc(s){ return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
+// Collision rule: two selected specialists sharing a first name both get
+// "First S" (surname initial); a third, non-colliding one keeps their
+// plain first name. Order in == order out.
+function resolveDisplayNames(ids){
+  const chosen = ids.map(id => SPECIALISTS_BY_ID.get(id)).filter(Boolean);
+  const counts = {};
+  chosen.forEach(s => { counts[s.displayName] = (counts[s.displayName]||0) + 1; });
+  return chosen.map(s => {
+    if (counts[s.displayName] > 1) {
+      const parts = s.fullName.trim().split(/\s+/);
+      return `${s.displayName} ${parts[parts.length-1][0].toUpperCase()}`;
+    }
+    return s.displayName;
+  });
+}
+
+function composeRunLabelPreview(territory){
+  const collapsed = String(territory||'').trim().replace(/\s+/g,' ');
+  if (!collapsed) return '';
+  const normalized = collapsed.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+  const ym = new Date().toISOString().slice(0,7);
+  return `${normalized} — ${ym}`;
+}
+
 /* ------------------------------------------------------------------ */
 /* state                                                                */
 /* ------------------------------------------------------------------ */
-const MAX_NAMES = 3;
+const MAX_SPECIALISTS = 3;
 const MAX_DATES = 5;
 const MIN_HORIZON = 21, MAX_HORIZON = 56;
+let SPECIALISTS_BY_ID = new Map();
 
 const state = {
   view: 'compose',
@@ -252,11 +291,11 @@ const state = {
   query: '',
   searchResults: [],
   searchNote: '',
-  names: [],
-  nameInput: '',
+  specialistsByRegion: [],  // [{region, specialists:[{id,fullName,displayName}]}]
+  specialistIds: [],        // ordered selection, max 3 — order drives the grammar
   dates: new Set(),
   horizon: MIN_HORIZON,
-  runLabel: '',
+  territory: '',
   showConfirm: false,
   preview: null,         // last /api/run/preview response
   previewing: false,
@@ -278,13 +317,23 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
   if (c.sendCap) document.getElementById('capLabel').textContent = c.sendCap.toLocaleString();
 }).catch(()=>{});
 
+fetch('/api/specialists').then(r=>r.json()).then(data=>{
+  state.specialistsByRegion = data.regions || [];
+  for (const g of state.specialistsByRegion) for (const s of g.specialists) SPECIALISTS_BY_ID.set(s.id, s);
+  render();
+}).catch(()=>{});
+
 /* ------------------------------------------------------------------ */
 /* API                                                                  */
 /* ------------------------------------------------------------------ */
 async function api(path, opts){
   const res = await fetch(path, { headers:{'Content-Type':'application/json'}, ...opts });
   const body = await res.json().catch(()=>({}));
-  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    const e = new Error(body.error || `Request failed (${res.status})`);
+    e.lost = !!body.lost;
+    throw e;
+  }
   return body;
 }
 
@@ -319,9 +368,9 @@ async function runPreview(){
       method:'POST',
       body: JSON.stringify({
         companyIds: state.accounts.map(a=>a.id),
-        names: state.names,
+        specialistIds: state.specialistIds,
         dates: [...state.dates],
-        runLabel: state.runLabel,
+        territory: state.territory,
       }),
     });
     state.preview = body;
@@ -335,11 +384,25 @@ async function runPreview(){
 
 async function startExecute(){
   if (!state.runId) return;
-  await api(`/api/run/${state.runId}/execute`, {
-    method:'POST',
-    body: JSON.stringify({ operator: document.getElementById('operator').value }),
-  });
-  state.showConfirm = false;
+  try {
+    await api(`/api/run/${state.runId}/execute`, {
+      method:'POST',
+      body: JSON.stringify({ operator: document.getElementById('operator').value }),
+    });
+  } catch (err) {
+    state.showConfirm = false;
+    if (err.lost) {
+      // Free-tier restart wiped it between preview and send — calm
+      // recovery, not an error banner: just ask for a fresh review.
+      state.preview = null;
+      state.runId = null;
+      state.previewError = "This run needs a fresh review — the tool's short-term memory was reset. Click Review before sending again.";
+    } else {
+      state.previewError = err.message;
+    }
+    render();
+    return;
+  }
   state.view = 'sending';
   render();
   pollStatus();
@@ -359,8 +422,13 @@ function pollStatus(){
       render();
       state.pollHandle = setTimeout(tick, 1200);
     } catch (err) {
-      state.status = { error: err.message };
-      render();
+      if (err.lost) {
+        state.status = { lost: true };
+        state.view = 'report';
+        render();
+        return;
+      }
+      // Transient (network blip, cold start) — keep trying quietly.
       state.pollHandle = setTimeout(tick, 3000);
     }
   };
@@ -375,23 +443,24 @@ const main = document.getElementById('main');
 function readiness(){
   return {
     accounts: state.accounts.length > 0,
-    names: state.names.length > 0,
+    specialists: state.specialistIds.length > 0,
     dates: state.dates.size > 0,
-    runLabel: state.runLabel.trim().length > 0,
+    territory: state.territory.trim().length > 0,
   };
 }
 
 function render(){
   const r = readiness();
-  const ready = r.accounts && r.names && r.dates && r.runLabel;
+  const ready = r.accounts && r.specialists && r.dates && r.territory;
   if (state.view === 'compose') main.innerHTML = composeView(r, ready) + (state.showConfirm ? confirmSheet() : '');
   if (state.view === 'sending') main.innerHTML = sendingView();
-  if (state.view === 'report') main.innerHTML = reportView();
+  if (state.view === 'report') main.innerHTML = (state.status && state.status.lost) ? lostView() : reportView();
   wire();
 }
 
 function composeView(r, ready){
-  const namesSentence = namePhrase(state.names);
+  const selectedNames = resolveDisplayNames(state.specialistIds);
+  const namesSentence = namePhrase(selectedNames);
   const datesSentence = dateSentence([...state.dates]);
 
   return `
@@ -415,21 +484,16 @@ function composeView(r, ready){
         </div>
       </section>
 
-      <section class="stage" data-done="${r.names}">
+      <section class="stage" data-done="${r.specialists}">
         <header><span class="num">2</span><div>
           <h2>Which specialists is it about?</h2>
-          <p class="hint">Up to three. The email reads naturally for one, two or three names.</p>
+          <p class="hint">Up to three. The order you pick them in is the order they're named in the email — pick your first choice first.</p>
         </div></header>
         <div class="body">
-          <ul class="chips">
-            ${state.names.map((n,i)=>`<li class="chip">${esc(n)}
-              <button data-drop-name="${i}" aria-label="Remove ${esc(n)}">&times;</button></li>`).join('')}
-          </ul>
-          ${state.names.length < MAX_NAMES ? `
-          <form class="nameform" data-nameform>
-            <input id="nameInput" placeholder="Type a name and press Enter" value="${esc(state.nameInput)}" autocomplete="off">
-            <button type="submit">Add</button>
-          </form>` : `<p class="cap-note">Three named — that's the most one email reads naturally.</p>`}
+          <div class="regions">
+            ${state.specialistsByRegion.map(regionBlock).join('')}
+          </div>
+          ${state.specialistIds.length >= MAX_SPECIALISTS ? `<p class="cap-note">Three named — that's the most one email reads naturally.</p>` : ''}
         </div>
       </section>
 
@@ -449,14 +513,14 @@ function composeView(r, ready){
         </div>
       </section>
 
-      <section class="stage" data-done="${r.runLabel}">
+      <section class="stage" data-done="${r.territory}">
         <header><span class="num">4</span><div>
-          <h2>Run label</h2>
-          <p class="hint">Territory plus year-month, e.g. <b>Manchester — 2026-09</b>. The workflow that sends these emails matches this exactly, so keep the em dash.</p>
+          <h2>What territory are you sending to?</h2>
+          <p class="hint">Just the area, e.g. <b>Manchester</b>. The tool adds the date stamp for you.</p>
         </div></header>
-        <div class="body runlabel">
-          <input id="runLabel" placeholder="e.g. Manchester — 2026-09" value="${esc(state.runLabel)}">
-          ${runLabelWarning() ? `<p class="warn">${esc(runLabelWarning())}</p>` : ''}
+        <div class="body territory">
+          <input id="territory" placeholder="e.g. Manchester" value="${esc(state.territory)}">
+          ${state.territory.trim() ? `<p class="hint-live">Recorded as: <b>${esc(composeRunLabelPreview(state.territory))}</b></p>` : ''}
         </div>
       </section>
 
@@ -481,13 +545,20 @@ function composeView(r, ready){
   </div>`;
 }
 
-function runLabelWarning(){
-  const s = state.runLabel;
-  if (!s) return null;
-  if (/\s-\s/.test(s) && !s.includes('—')) {
-    return 'This uses a plain hyphen, not an em dash ("—"). If the workflow trigger expects an em dash, this won\'t match it.';
-  }
-  return null;
+function regionBlock(group){
+  return `<div class="region-group">
+    <h3>${esc(group.region)}</h3>
+    <ul class="people">
+      ${group.specialists.map(s=>{
+        const order = state.specialistIds.indexOf(s.id);
+        const on = order !== -1;
+        const full = state.specialistIds.length >= MAX_SPECIALISTS && !on;
+        return `<li><button class="person" data-specialist="${s.id}" aria-pressed="${on}" ${full?'disabled':''}>
+          ${on?`<span class="order">${order+1}</span>`:''}<b>${esc(s.fullName)}</b>
+        </button></li>`;
+      }).join('')}
+    </ul>
+  </div>`;
 }
 
 function accountResults(){
@@ -513,11 +584,13 @@ function dateStrip(){
 
 function slip(r, ready){
   const p = state.preview;
+  const selectedFullNames = state.specialistIds.map(id => SPECIALISTS_BY_ID.get(id)?.fullName).filter(Boolean);
   return `<div class="slip">
     <h2>This send</h2>
     ${p ? `
     <div class="tally">
       <div class="big"><b>${p.counts.willWriteToday.toLocaleString()}</b><span>people will be queued today</span></div>
+      ${p.capacity ? `<p class="capacity">${p.capacity.sentToday.toLocaleString()} sent through this tool today. ${p.capacity.remainingToday.toLocaleString()} remaining.</p>` : ''}
       <ul>
         <li><span>In the accounts you picked</span><b>${p.counts.raw.toLocaleString()}</b></li>
         <li><span>On the do-not-email list</span><b>&minus;${p.counts.excluded.permanentList}</b></li>
@@ -533,14 +606,14 @@ function slip(r, ready){
       of the queue next time — nothing else to do.
     </div>`:''}
     ` : `<div class="tally"><p style="color:var(--ink-soft);font-size:13.5px;margin:0">
-      ${ready ? 'Review to see the real numbers from HubSpot.' : 'Fill in accounts, specialists, dates and a run label to continue.'}
+      ${ready ? 'Review to see the real numbers from HubSpot.' : 'Fill in accounts, specialists, dates and a territory to continue.'}
     </p></div>`}
 
     <div class="slipfacts">
       <dl>
-        <dt>Specialists</dt><dd>${nameSentence(state.names)?esc(nameSentence(state.names)):'<em>none named</em>'}</dd>
+        <dt>Specialists</dt><dd>${selectedFullNames.length?esc(selectedFullNames.join(', ')):'<em>none picked</em>'}</dd>
         <dt>Dates</dt><dd>${dateSentence([...state.dates])?esc(dateSentence([...state.dates])):'<em>none entered</em>'}</dd>
-        <dt>Run label</dt><dd>${state.runLabel?esc(state.runLabel):'<em>none entered</em>'}</dd>
+        <dt>Territory</dt><dd>${state.territory.trim()?esc(composeRunLabelPreview(state.territory)):'<em>none entered</em>'}</dd>
         <dt>Order</dt><dd>Longest since their last one first</dd>
       </dl>
     </div>
@@ -548,7 +621,7 @@ function slip(r, ready){
     <div class="slipact">
       <button class="go" data-review ${ready?'':'disabled'} ${state.previewing?'disabled':''}>${state.previewing?'Checking with HubSpot…':'Review before sending'}</button>
       <button class="ghost" data-dry ${ready?'':'disabled'} ${state.previewing?'disabled':''}>Try it without sending</button>
-      ${!ready?`<p class="blocked">Add ${!r.accounts?'an account':!r.names?'a specialist':!r.dates?'some dates':'a run label'} to carry on.</p>`:''}
+      ${!ready?`<p class="blocked">Add ${!r.accounts?'an account':!r.specialists?'a specialist':!r.dates?'some dates':'the territory'} to carry on.</p>`:''}
       ${state.previewError?`<p class="err">${esc(state.previewError)}</p>`:''}
     </div>
   </div>`;
@@ -557,9 +630,11 @@ function slip(r, ready){
 function confirmSheet(){
   const p = state.preview;
   if (!p) return '';
-  const names = esc(nameSentence(state.names)||'');
-  const phrase = esc(namePhrase(state.names)||'');
-  const dates = esc(dateSentence([...state.dates])||'');
+  const selectedFullNames = state.specialistIds.map(id => SPECIALISTS_BY_ID.get(id)?.fullName).filter(Boolean);
+  const names = esc(selectedFullNames.join(', '));
+  const phrase = esc(p.renderedStrings.date_email_ps_name);
+  const dates = esc(p.renderedStrings.date_email_ps_dates);
+  const territory = esc(p.renderedStrings.date_email_last_run);
   const sample = p.sample;
   return `<div class="scrim" data-scrim>
     <div class="sheet" role="dialog" aria-modal="true" aria-label="Review before sending">
@@ -574,7 +649,7 @@ function confirmSheet(){
           <dt>People</dt><dd>${p.counts.willWriteToday.toLocaleString()} today${p.counts.heldForNextTime?`, ${p.counts.heldForNextTime} held for next time`:''}</dd>
           <dt>Specialists</dt><dd>${names}</dd>
           <dt>Dates</dt><dd>${dates}</dd>
-          <dt>Run label</dt><dd>${esc(state.runLabel)}</dd>
+          <dt>Territory</dt><dd>${territory}</dd>
           <dt>From</dt><dd>Accora Assessments &lt;assessments@accora.care&gt;</dd>
         </dl>
       </section>
@@ -582,7 +657,7 @@ function confirmSheet(){
         <h3>What one of them will get</h3>
         ${sample ? `<div class="letter">
           <div class="meta">To <b>${esc(sample.firstname || 'a contact')}</b> (${esc(sample.email)}) · From <b>Accora Assessments</b><br>
-          Subject <b>${names}, in your area on ${dates}</b></div>
+          Subject <b>${esc(p.renderedStrings.date_email_ps_names_plain)}, in your area on ${dates}</b></div>
           <div class="copy">
             <p>Hi ${esc(sample.firstname || 'there')},</p>
             <p><mark>${phrase}</mark> in your area on <mark>${dates}</mark>, with room for assessments while nearby.</p>
@@ -606,10 +681,11 @@ function sendingView(){
   const total = s ? s.counts.willWriteToday : 0;
   const done = s ? s.writtenCount : 0;
   const pct = total ? Math.round((done/total)*100) : 0;
-  const namesRendered = s && s.renderedStrings ? s.renderedStrings.date_email_ps_names_plain : nameSentence(state.names);
+  const label = s && s.renderedStrings ? s.renderedStrings.date_email_last_run : composeRunLabelPreview(state.territory);
+  const namesRendered = s && s.renderedStrings ? s.renderedStrings.date_email_ps_names_plain : nameSentence(resolveDisplayNames(state.specialistIds));
   const datesRendered = s && s.renderedStrings ? s.renderedStrings.date_email_ps_dates : dateSentence([...state.dates]);
   return `<div class="stages"><div class="prog">
-    <h2>Queuing for ${esc(state.runLabel)}</h2>
+    <h2>Queuing for ${esc(label)}</h2>
     <p class="sub">${done.toLocaleString()} people are queued so far, for ${esc(namesRendered||'')} on ${esc(datesRendered||'')}. They'll go out over the next few minutes as HubSpot's workflow enrols them.
     Leave this open — if you close it, come back and it'll still be running.</p>
     <div class="bar"><i style="width:${pct}%"></i></div>
@@ -670,6 +746,15 @@ function reportView(){
   </div></div>`;
 }
 
+function lostView(){
+  return `<div class="stages"><div class="lost">
+    <h2>This run's progress didn't survive</h2>
+    <p>The tool clears its short-term memory when it restarts or idles out — that's routine on this
+    hosting tier, not a fault. If HubSpot shows the accounts stamped, it worked; check there if unsure.</p>
+    <p style="margin-top:24px"><button class="ghost" style="width:auto;padding:9px 16px" data-newrun>Start a new run</button></p>
+  </div></div>`;
+}
+
 /* ------------------------------------------------------------------ */
 /* events                                                               */
 /* ------------------------------------------------------------------ */
@@ -678,29 +763,23 @@ function wire(){
   if (q) q.oninput = e => { state.query = e.target.value; scheduleSearch(); render();
     const n=document.getElementById('q'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)} };
 
-  const nameInput = document.getElementById('nameInput');
-  if (nameInput) nameInput.oninput = e => { state.nameInput = e.target.value; };
-
-  const nameForm = main.querySelector('[data-nameform]');
-  if (nameForm) nameForm.onsubmit = e => {
-    e.preventDefault();
-    const v = state.nameInput.trim();
-    if (v && state.names.length < MAX_NAMES) { state.names.push(v); state.nameInput=''; invalidatePreview(); }
-    render();
-  };
-
-  const runLabelInput = document.getElementById('runLabel');
-  if (runLabelInput) runLabelInput.oninput = e => { state.runLabel = e.target.value; invalidatePreview(); render();
-    const n=document.getElementById('runLabel'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)} };
+  const territoryInput = document.getElementById('territory');
+  if (territoryInput) territoryInput.oninput = e => { state.territory = e.target.value; invalidatePreview(); render();
+    const n=document.getElementById('territory'); if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length)} };
 
   main.onclick = e => {
-    const t = e.target.closest('[data-add-acc],[data-drop-acc],[data-drop-name],[data-day],[data-horizon],[data-review],[data-dry],[data-cancel],[data-scrim],[data-start],[data-newrun]');
+    const t = e.target.closest('[data-add-acc],[data-drop-acc],[data-specialist],[data-day],[data-horizon],[data-review],[data-dry],[data-cancel],[data-scrim],[data-start],[data-newrun]');
     if (!t) return;
     const d = t.dataset;
 
     if (d.addAcc){ state.accounts.push({id:d.addAcc, name:d.addAccName}); state.query=''; state.searchResults=[]; invalidatePreview(); }
     else if (d.dropAcc){ state.accounts = state.accounts.filter(a=>a.id!==d.dropAcc); invalidatePreview(); }
-    else if (d.dropName!==undefined){ state.names.splice(Number(d.dropName),1); invalidatePreview(); }
+    else if (d.specialist){
+      const idx = state.specialistIds.indexOf(d.specialist);
+      if (idx !== -1) state.specialistIds.splice(idx, 1);
+      else if (state.specialistIds.length < MAX_SPECIALISTS) state.specialistIds.push(d.specialist);
+      invalidatePreview();
+    }
     else if (d.day){
       if (state.dates.has(d.day)) state.dates.delete(d.day);
       else if (state.dates.size < MAX_DATES) state.dates.add(d.day);
@@ -713,7 +792,8 @@ function wire(){
         if (!state.preview) return;
         state.view = 'report';
         state.status = {
-          status: 'previewed', runLabel: state.runLabel, names: state.names, dates: [...state.dates],
+          status: 'previewed', runLabel: state.preview.renderedStrings.date_email_last_run,
+          names: resolveDisplayNames(state.specialistIds), dates: [...state.dates],
           renderedStrings: state.preview.renderedStrings,
           counts: state.preview.counts, writtenCount: 0, failedCount: 0, log: [],
         };

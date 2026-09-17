@@ -7,6 +7,7 @@ const { makeClient } = require("./lib/hubspot");
 const render = require("./lib/render");
 const pipeline = require("./lib/pipeline");
 const store = require("./lib/store");
+const specialists = require("./lib/specialists");
 
 const hubspot = makeClient(config.hubspotToken);
 const app = express();
@@ -18,8 +19,8 @@ function asyncRoute(fn) {
   return (req, res) => fn(req, res).catch((err) => handleError(res, err));
 }
 
-// Readable errors only — Kelly runs this, a stack trace is a dead end for
-// her. The server console gets the message and stack, never a raw HubSpot
+// Readable errors only — Apple runs this, a stack trace is a dead end for
+// them. The server console gets the message and stack, never a raw HubSpot
 // response body (those can carry contact PII — see devops-assistant skill).
 function handleError(res, err) {
   console.error(err.stack || err.message);
@@ -61,6 +62,12 @@ app.get(
 );
 
 // ────────────────────────────────────────────────────────────────────────
+// Specialists — static roster, grouped by region for the tile selector.
+// ────────────────────────────────────────────────────────────────────────
+
+app.get("/api/specialists", (req, res) => res.json({ regions: specialists.listGroupedByRegion() }));
+
+// ────────────────────────────────────────────────────────────────────────
 // Preview — resolve, exclude, order, render, report. Never writes.
 // This IS the dry run: "Try it without sending" calls this and stops.
 // ────────────────────────────────────────────────────────────────────────
@@ -68,16 +75,19 @@ app.get(
 app.post(
   "/api/run/preview",
   asyncRoute(async (req, res) => {
-    const { companyIds, names, dates, runLabel, cap } = req.body || {};
+    const { companyIds, specialistIds, dates, territory, cap } = req.body || {};
 
     if (!Array.isArray(companyIds) || companyIds.length === 0) {
       const e = new Error("Pick at least one account.");
       throw e;
     }
-    const cleanNames = (names || []).map((n) => String(n).trim()).filter(Boolean);
-    if (cleanNames.length < 1 || cleanNames.length > 3) {
-      throw new Error("Name 1 to 3 specialists.");
+    const cleanSpecialistIds = (specialistIds || []).map((id) => String(id).trim()).filter(Boolean);
+    if (cleanSpecialistIds.length < 1 || cleanSpecialistIds.length > 3) {
+      throw new Error("Pick 1 to 3 specialists.");
     }
+    // Selection order drives the rendered string — resolve names before
+    // anything could reorder them.
+    const cleanNames = specialists.resolveDisplayNames(cleanSpecialistIds);
     const cleanDates = (dates || []).map((d) => String(d).trim()).filter(Boolean);
     if (cleanDates.length === 0) {
       throw new Error("Add at least one date.");
@@ -87,8 +97,18 @@ app.post(
 
     // Render first — the past-date hard failure must stop the run before
     // any HubSpot calls, per the brief, and costs nothing to check early.
-    const renderedStrings = render.renderAll({ names: cleanNames, dates: cleanDates, runLabel, runDateIso: runDate });
-    const warning = render.emDashWarning(runLabel);
+    const renderedStrings = render.renderAll({ names: cleanNames, dates: cleanDates, territory, runDateIso: runDate });
+
+    // Daily capacity is informational only — shown next to the cohort count,
+    // not wired into the cap used below. If HubSpot is slow to answer this
+    // one, don't let it sink the whole preview.
+    let capacity = null;
+    try {
+      const sentToday = await hubspot.countContactsSentToday(runDate);
+      capacity = { sentToday, remainingToday: Math.max(config.sendCap - sentToday, 0) };
+    } catch (err) {
+      console.error("Capacity count failed:", err.message);
+    }
 
     const [rawContactIds, exclusionListMemberIds] = await Promise.all([
       hubspot.getContactIdsForCompanies(companyIds),
@@ -120,9 +140,11 @@ app.post(
       createdAt: new Date().toISOString(),
       runDate,
       companyIds,
+      specialistIds: cleanSpecialistIds,
       names: cleanNames,
       dates: cleanDates,
-      runLabel,
+      territory,
+      runLabel: renderedStrings.date_email_last_run,
       cap: effectiveCap,
       status: "previewed",
       counts: {
@@ -153,7 +175,7 @@ app.post(
       companyIds,
       names: cleanNames,
       dates: cleanDates,
-      runLabel,
+      runLabel: run.runLabel,
       counts: run.counts,
     });
 
@@ -162,7 +184,7 @@ app.post(
       counts: run.counts,
       renderedStrings,
       sample: run.sample,
-      warning,
+      capacity,
     });
   })
 );
@@ -176,7 +198,11 @@ app.post(
   "/api/run/:id/execute",
   asyncRoute(async (req, res) => {
     const run = store.loadRun(req.params.id);
-    if (!run) throw new Error("That run wasn't found — it may have expired. Start again from Compose.");
+    if (!run) {
+      // The free-tier disk is wiped on restart/redeploy/spin-down — this is
+      // routine, not a fault. Calm message, not an error banner.
+      return res.status(404).json({ lost: true, error: "This run's details didn't survive — start again from Compose." });
+    }
     if (run.status !== "previewed") {
       return res.json({ runId: run.id, status: run.status });
     }
@@ -270,7 +296,15 @@ app.get(
   "/api/run/:id/status",
   asyncRoute(async (req, res) => {
     const run = store.loadRun(req.params.id);
-    if (!run) throw new Error("That run wasn't found — it may have expired.");
+    if (!run) {
+      // Same ephemeral-disk situation as execute — an empty state, not an
+      // error. If the run had actually started, HubSpot itself has the
+      // truth regardless of what this service remembers.
+      return res.status(404).json({
+        lost: true,
+        error: "This run's progress didn't survive — the tool's short-term memory is wiped on restart. Check HubSpot if unsure, or start again.",
+      });
+    }
     res.json({
       runId: run.id,
       status: run.status,
